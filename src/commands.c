@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "commands.h"
 #include "built_in.h"
@@ -30,13 +31,19 @@ static int is_built_in_command(const char* command_name)
  */
 int evaluate_command(int n_commands, struct single_command (*commands)[512])
 {
-	
+
+  signal(SIGINT, SIG_IGN);
+  signal(SIGTSTP, SIG_IGN);
   int pid;
 
   if (n_commands > 0) {
 
-    struct single_command* com = (*commands);
+	char* c[5] = { "/usr/local/bin/", "/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/"};
+	
+	char cmd[256];
 
+    struct single_command* com = (*commands);
+	
     assert(com->argc != 0);
 
     int built_in_pos = is_built_in_command(com->argv[0]);
@@ -73,8 +80,10 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 	
 	else 
 	{
-      if(com->arg[0][0] == '/')
-	  {
+//		signal(SIGINT, INT_IGN);
+//		signal(SIGTSTP, INT_IGN);
+
+		//int status;		
 		pid = fork();
 
 		if(pid < 0)
@@ -85,26 +94,40 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 		else if(pid == 0)
 		{
 		//childe process
-			execv(com->argv[0], com->argv);
-			exit(0);
+			strcpy(cmd, com->argv[0]);
+
+		  if(execv(com->argv[0], com->argv) == -1){
+
+			for(int i = 0; i < 5; i++){
+				strcpy(com->argv[0], c[i]);
+				strcat(com->argv[0], cmd);
+			  	if(execv(com->argv[0], com->argv) == -1){
+				  if(i == 4) {
+				    printf("Not a command!\n");
+					exit(1);	
+				//  printf("HI\n");
+				  }
+				  continue;
+				}
+				else {exit(1);break;}
+			  }
+		  }
+		  else exit(1);
+
 		}
 		else
 		{
 		//parendt process
 			wait(NULL);
 		}
-	  }
-	  
-	  else
-	  {
-	  	fprintf(stderr, "%s: command not found\n", com->argv[0]);
-      	return -1;
-	  }
-	}
-  
+
+//		 fprintf(stderr, "%s: mynameishyejees\n", com->argv[0]);
+//        printf("i am fine");
+//		return -1;
+  	}
   }
 
-  return 0;
+ return 0;
 }
 
 void free_commands(int n_commands, struct single_command (*commands)[512])
